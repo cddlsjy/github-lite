@@ -1,0 +1,212 @@
+项目描述指出 `FileTreeFragment` 在横屏时显示为空白窗口，而预期应为目录树和文件内容并排显示。
+
+**问题分析：**
+
+1.  **布局结构和方向切换：**
+    `fragment_file_tree.xml` 的根布局是一个 `LinearLayout` (id: `rootLayout`)，其初始方向为 `vertical`。它包含了：
+    *   一个用于“下载仓库”按钮的 `LinearLayout` (水平方向，`wrap_content` 高度，`match_parent` 宽度)。
+    *   一个分隔线 `View`。
+    *   `treeContainer` (FrameLayout，初始 `match_parent` 宽度，`0dp` 高度，`layout_weight="1"`)。
+    *   `fileContentScrollView` (ScrollView，初始 `match_parent` 宽度，`0dp` 高度，`layout_weight="1"`)。
+
+    在 `FileTreeFragment.kt` 中，`updateLayoutOrientation()` 方法会根据屏幕方向动态修改 `rootLayout` 的 `orientation` 属性，并调整 `treeContainer` 和 `fileContentScrollView` 的 `layout_width`、`layout_height` 和 `layout_weight`。
+
+2.  **`LinearLayout` 布局行为冲突：**
+    当 `rootLayout` 被设置为 `horizontal` 方向时（横屏模式），其子视图会尝试水平排列。
+    *   第一个子视图（“下载仓库”按钮的 `LinearLayout`）的 `layout_width` 被设置为 `match_parent`。在一个水平方向的 `LinearLayout` 中，`match_parent` 的子视图会尝试占据所有可用宽度。
+    *   这将导致后续的 `treeContainer` 和 `fileContentScrollView` (它们的 `layout_width` 被 `updateLayoutOrientation` 设置为 `0dp`，并依赖 `layout_weight` 进行分配) 无法获得任何有效宽度，从而显示为空白，甚至可能被挤出屏幕。
+
+**解决方案：**
+
+为了正确实现横屏时目录树和文件内容并排显示，需要将布局结构调整为：顶部的固定区域（下载按钮和分隔线）始终保持垂直布局，而下面的内容区域（目录树和文件内容）根据屏幕方向切换其内部的布局方向。
+
+**具体修改步骤：**
+
+1.  **修改 `app/src/main/res/layout/fragment_file_tree.xml`：**
+    *   保持最外层 `LinearLayout` (id: `rootLayout`) 的 `android:orientation="vertical"` 不变。
+    *   在下载按钮的 `LinearLayout` 和分隔线 `View` 之后，添加一个新的 `LinearLayout` 作为动态内容区域的容器，并为其设置一个 ID，例如 `contentSplitLayout`。
+    *   这个新的 `contentSplitLayout` 应该占据剩余的所有垂直空间：`android:layout_width="match_parent"`，`android:layout_height="0dp"`，`android:layout_weight="1"`。
+    *   将 `treeContainer`、`fileContentScrollView` 和 `emptyHintText` 移动到这个新的 `contentSplitLayout` 内部。
+    *   `contentSplitLayout` 的初始 `android:orientation` 仍为 `"vertical"`。
+
+    修改后的 `fragment_file_tree.xml` 示例：
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/rootLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"> <!-- 保持垂直方向 -->
+
+        <!-- 下载仓库按钮区域 (固定在顶部) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:gravity="center_vertical">
+            <ImageButton
+                android:id="@+id/downloadRepoButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_save"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Download repository as zip"
+                android:scaleType="centerInside" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Download Repo"
+                android:textSize="14sp"
+                android:textColor="@android:color/darker_gray" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@android:color/darker_gray" />
+
+        <!-- 动态内容区域：目录树和文件内容。这个 LinearLayout 的方向将根据屏幕方向切换。 -->
+        <LinearLayout
+            android:id="@+id/contentSplitLayout" <!-- 新增 ID -->
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"> <!-- 初始方向为垂直 -->
+
+            <!-- 文件树区域 -->
+            <FrameLayout
+                android:id="@+id/treeContainer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp" <!-- 保持 0dp -->
+                android:layout_weight="1">
+                <ExpandableListView
+                    android:id="@+id/expandableTreeView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:divider="@android:color/darker_gray"
+                    android:dividerHeight="1dp"
+                    android:childDivider="@android:color/transparent"
+                    android:groupIndicator="@android:drawable/arrow_down_float" />
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- 文件内容预览区域 -->
+            <ScrollView
+                android:id="@+id/fileContentScrollView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp" <!-- 保持 0dp -->
+                android:layout_weight="1"
+                android:background="#fafafa"
+                android:padding="8dp"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/fileContentTextView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp"
+                    android:textIsSelectable="true" />
+            </ScrollView>
+
+            <!-- 初始提示 -->
+            <TextView
+                android:id="@+id/emptyHintText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="Select a file to preview"
+                android:textColor="@android:color/darker_gray"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+    ```
+
+2.  **修改 `app/src/main/java/com/example/githubexplorer/ui/repodetail/FileTreeFragment.kt`：**
+    *   在 `FileTreeFragment` 类中添加一个属性来引用新的 `contentSplitLayout`：
+        `private lateinit var contentSplitLayout: LinearLayout`
+    *   在 `onCreateView` 方法中初始化这个属性：
+        `contentSplitLayout = binding.contentSplitLayout`
+    *   在 `updateLayoutOrientation()` 方法中，将修改 `LinearLayout` 方向的代码从 `rootLayout.orientation = ...` 改为 `contentSplitLayout.orientation = ...`。
+
+    修改后的 `FileTreeFragment.kt` 片段示例：
+
+    ```kotlin
+    package com.example.githubexplorer.ui.repodetail
+
+    // ... imports ...
+
+    class FileTreeFragment : Fragment() {
+        private var _binding: FragmentFileTreeBinding? = null
+        private val binding get() = _binding!!
+        // private lateinit var rootLayout: LinearLayout // 不再直接操作 rootLayout 的 orientation
+        private lateinit var contentSplitLayout: LinearLayout // 新增：引用动态内容区域的 LinearLayout
+        private val treeNodes = mutableListOf<TreeEntry>()
+        private lateinit var treeAdapter: TreeAdapter
+
+        // ... onCreate ...
+
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+            _binding = FragmentFileTreeBinding.inflate(inflater, container, false)
+            // rootLayout = binding.root as LinearLayout // 仍然可以保留对根布局的引用，但不再用于方向切换
+            contentSplitLayout = binding.contentSplitLayout // 初始化新的内容布局
+            return binding.root
+        }
+
+        override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+            super.onViewCreated(view, savedInstanceState)
+            binding.downloadRepoButton.setOnClickListener { downloadRepo() }
+            loadRepoTree()
+            updateLayoutOrientation()
+        }
+
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            super.onConfigurationChanged(newConfig)
+            updateLayoutOrientation()
+        }
+
+        private fun updateLayoutOrientation() {
+            // if (!::rootLayout.isInitialized) return // 不再使用 rootLayout 进行方向判断
+            if (!::contentSplitLayout.isInitialized) return // 使用新的内容布局进行初始化检查
+
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+            // 修改 contentSplitLayout 的方向
+            contentSplitLayout.orientation = if (isLandscape) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+
+            val treeParams = binding.treeContainer.layoutParams as LinearLayout.LayoutParams
+            val scrollParams = binding.fileContentScrollView.layoutParams as LinearLayout.LayoutParams
+
+            if (isLandscape) {
+                treeParams.width = 0
+                treeParams.height = LinearLayout.LayoutParams.MATCH_PARENT
+                treeParams.weight = 1f
+
+                scrollParams.width = 0
+                scrollParams.height = LinearLayout.LayoutParams.MATCH_PARENT
+                scrollParams.weight = 1f
+            } else {
+                treeParams.width = LinearLayout.LayoutParams.MATCH_PARENT
+                treeParams.height = 0
+                treeParams.weight = 1f
+
+                scrollParams.width = LinearLayout.LayoutParams.MATCH_PARENT
+                scrollParams.height = 0
+                scrollParams.weight = 1f
+            }
+            binding.treeContainer.layoutParams = treeParams
+            binding.fileContentScrollView.layoutParams = scrollParams
+        }
+
+        // ... 其他方法 ...
+    }
+    ```
+
+通过这些修改，顶部的下载按钮区域将始终保持在屏幕顶部，而下方的目录树和文件内容区域则能在横屏时正确地并排显示，解决空白窗口的问题。
