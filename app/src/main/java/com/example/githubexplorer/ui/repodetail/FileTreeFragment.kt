@@ -76,11 +76,11 @@ class FileTreeFragment : Fragment() {
         if (isLandscape) {
             treeParams.width = 0
             treeParams.height = LinearLayout.LayoutParams.MATCH_PARENT
-            treeParams.weight = 1f
+            treeParams.weight = 0.3333f
 
             scrollParams.width = 0
             scrollParams.height = LinearLayout.LayoutParams.MATCH_PARENT
-            scrollParams.weight = 1f
+            scrollParams.weight = 0.6666f
         } else {
             treeParams.width = LinearLayout.LayoutParams.MATCH_PARENT
             treeParams.height = 0

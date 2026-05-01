@@ -9,7 +9,7 @@ AIGC:
     ReservedCode2: 3045022046638ae779b8a06f3d82b6f23a42b566f4b0f56312415f3e1a8cf319463e3b22022100c17160583f87bcd692a894694b42f9ab97c8c182c18dbcf1549da5c2bfaeb857
 ---
 
-# GitHub Explorer
+# GitHub Explorer,文件和预览3:7比列显示
 
 A native Android application for browsing GitHub repositories and managing GitHub Actions workflows.
 
