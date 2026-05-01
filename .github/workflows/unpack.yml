@@ -2,8 +2,8 @@ name: Unpack ZIP and Move Subdir to Root
 
 on:
   push:
-    paths: ['**.zip']          # 推送 zip 文件时自动触发
-  workflow_dispatch:           # 也支持手动触发
+    paths: ['**.zip']
+  workflow_dispatch:
     inputs:
       zip_file:
         description: '要解压的 ZIP 文件名（例如 "archive.zip"）'
@@ -23,7 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1️⃣ 自动解压（仅当恰好有一个 zip 文件）
       - name: 自动解压并移动子目录内容
         if: github.event_name == 'push'
         run: |
@@ -41,7 +40,6 @@ jobs:
             mkdir -p "$temp_dir"
             unzip -o "$zipfile" -d "$temp_dir"
 
-            # 检查解压后是否为空
             if [ -z "$(ls -A "$temp_dir")" ]; then
               echo "⚠️ ZIP 文件为空"
               rm -rf "$temp_dir"
@@ -66,11 +64,12 @@ jobs:
           else
             echo "检测到多个 ZIP 文件 ($count 个)，不自动解压。"
             echo "请手动运行 workflow_dispatch 并指定 zip_file。"
-            printf '  - %s\n' "${zip_files[@]}"
+            for f in "${zip_files[@]}"; do
+              echo "  - $f"
+            done
             exit 0
           fi
 
-      # 2️⃣ 手动解压指定的 ZIP 文件
       - name: 手动解压并移动子目录内容
         if: github.event_name == 'workflow_dispatch' && inputs.zip_file != ''
         run: |
@@ -101,7 +100,6 @@ jobs:
           rm -f "$zipfile"
           echo "✅ 解压并移动完成"
 
-      # 3️⃣ 手动移动已存在的子目录到根目录（独立于 ZIP）
       - name: 移动指定的子目录到根目录
         if: github.event_name == 'workflow_dispatch' && inputs.subdir != ''
         run: |
@@ -117,7 +115,6 @@ jobs:
             exit 1
           fi
 
-      # 4️⃣ 提交更改（排除 .github 目录，避免触发循环）
       - name: 提交更改
         run: |
           git config user.name "github-actions[bot]"
